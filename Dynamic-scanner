@@ -1,0 +1,136 @@
+import requests
+from bs4 import BeautifulSoup
+import re
+import sys
+import time
+
+# ASCII Art Banner
+def show_banner():
+    banner = r"""
+       ██████╗ ██╗   ██╗███╗   ██╗██╗ ███╗   ██╗ █████╗  ██████╗ ███████╗
+       ██╔══██╗██║   ██║████╗  ██║██║ ████╗  ██║██╔══██╗██╔════╝ ██╔════╝
+       ██████╔╝██║   ██║██╔██╗ ██║██║ ██╔██╗ ██║███████║██║  ███╗█████╗  
+       ██╔═══╝ ██║   ██║██║╚██╗██║██║ ██║╚██╗██║██╔══██║██║   ██║██╔══╝  
+       ██║     ╚██████╔╝██║ ╚████║██║ ██║ ╚████║██║  ██║╚██████╔╝███████╗
+       ╚═╝      ╚═════╝ ╚═╝  ╚═══╝╚═╝ ╚═╝  ╚═══╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
+                  ** Dynamic Scanner by Sherin Sunny **
+    """
+    print(banner)
+
+# Function to get all links on a page
+def get_links(url):
+    links = []
+    try:
+        response = requests.get(url, timeout=5)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        for link in soup.find_all('a', href=True):
+            link_url = link.get('href')
+            if link_url.startswith('http'):
+                links.append(link_url)
+            elif link_url.startswith('/'):
+                links.append(url + link_url)  # Handle relative URLs
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching {url}: {e}")
+    return list(set(links))  # Remove duplicate links
+
+# Function to check for SQL Injection vulnerability
+def check_sql_injection(url):
+    payload = "' OR '1'='1"
+    try:
+        response = requests.get(url + payload, timeout=5)
+        if "sql" in response.text.lower():
+            return f"[SQL Injection] Vulnerability found at: {url}"
+    except requests.exceptions.RequestException:
+        return None
+
+# Function to check for Cross-Site Scripting (XSS)
+def check_xss(url):
+    payload = "<script>alert('XSS')</script>"
+    try:
+        response = requests.get(url + payload, timeout=5)
+        if payload in response.text:
+            return f"[XSS] Vulnerability found at: {url}"
+    except requests.exceptions.RequestException:
+        return None
+
+# Function to check HTTP headers for security issues
+def check_http_headers(url):
+    try:
+        response = requests.get(url, timeout=5)
+        headers = response.headers
+        issues = []
+        if "X-Content-Type-Options" not in headers:
+            issues.append("Missing X-Content-Type-Options header")
+        if "X-Frame-Options" not in headers:
+            issues.append("Missing X-Frame-Options header")
+        if "Content-Security-Policy" not in headers:
+            issues.append("Missing Content-Security-Policy header")
+        if "Strict-Transport-Security" not in headers:
+            issues.append("Missing Strict-Transport-Security header")
+        if issues:
+            return f"[Header Issues] {url}: {', '.join(issues)}"
+    except requests.exceptions.RequestException:
+        return None
+
+# Function to check for open redirects
+def check_open_redirect(url):
+    payload = "/?redirect=http://malicious.com"
+    try:
+        response = requests.get(url + payload, timeout=5, allow_redirects=False)
+        if response.status_code in [301, 302] and "malicious.com" in response.headers.get("Location", ""):
+            return f"[Open Redirect] Vulnerability found at: {url}"
+    except requests.exceptions.RequestException:
+        return None
+
+# Function to check for directory traversal
+def check_directory_traversal(url):
+    payload = "/../../../../etc/passwd"
+    try:
+        response = requests.get(url + payload, timeout=5)
+        if "root:" in response.text:
+            return f"[Directory Traversal] Vulnerability found at: {url}"
+    except requests.exceptions.RequestException:
+        return None
+
+# Main scanning function
+def run_scanner(target_url):
+    print(f"[*] Starting scan on {target_url}")
+    results = []
+
+    # Step 1: Crawl for links
+    print("[*] Crawling for links...")
+    links = get_links(target_url)
+    print(f"[+] Found {len(links)} links.")
+
+    # Step 2: Scan each link
+    for link in links:
+        print(f"[*] Scanning {link}")
+        vulnerabilities = [
+            check_sql_injection(link),
+            check_xss(link),
+            check_http_headers(link),
+            check_open_redirect(link),
+            check_directory_traversal(link),
+        ]
+        for vuln in vulnerabilities:
+            if vuln:
+                results.append(vuln)
+                print(vuln)
+
+    # Step 3: Save results to a file
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    output_file = f"dynamic_scan_results_{timestamp}.txt"
+    with open(output_file, "w") as f:
+        f.write("\n".join(results))
+    print(f"[+] Scan completed. Results saved in {output_file}")
+
+# Entry point for the script
+if __name__ == "__main__":
+    show_banner()
+
+    if len(sys.argv) != 2:
+        print("Usage: python dynamic_scanner.py <target_url>")
+        sys.exit(1)
+
+    target = sys.argv[1]
+    run_scanner(target)
