@@ -1,0 +1,76 @@
+import os
+import subprocess
+import sys
+from datetime import datetime
+
+# ASCII Art Banner
+def show_banner():
+    banner = r"""
+        █████╗ ███████╗██╗   ██╗ ██████╗ ███████╗ █████╗ ███╗   ██╗
+       ██╔══██╗██╔════╝██║   ██║██╔════╝ ██╔════╝██╔══██╗████╗  ██║
+       ███████║███████╗██║   ██║██║  ███╗█████╗  ███████║██╔██╗ ██║
+       ██╔══██║╚════██║██║   ██║██║   ██║██╔══╝  ██╔══██║██║╚██╗██║
+       ██║  ██║███████║╚██████╔╝╚██████╔╝███████╗██║  ██║██║ ╚████║
+       ╚═╝  ╚═╝╚══════╝ ╚═════╝  ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝
+       *** Advanced Web Application Scanner by Sherin sunny***
+    """
+    print(banner)
+
+# Function to check and install tools
+def check_and_install_tools(tools):
+    for tool in tools:
+        print(f"[*] Checking for {tool}...")
+        if not shutil.which(tool):
+            print(f"[!] {tool} not found. Installing...")
+            if tool == "sublist3r":
+                os.system("pip install sublist3r")
+            elif tool == "checkurl":
+                os.system("pip install checkurl")
+            elif tool == "blazy":
+                os.system("pip install blazy")
+            else:
+                os.system(f"sudo apt install -y {tool}")
+        else:
+            print(f"[+] {tool} is installed.")
+
+# Run tools
+def run_tools(target_url, target_domain):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = f"scan_results_{timestamp}.txt"
+
+    with open(output_file, "w") as f:
+        def write_and_run(command, description):
+            print(f"[*] Running: {description}")
+            f.write(f"\n\n## {description}\n")
+            result = subprocess.getoutput(command)
+            f.write(result)
+            print(f"[+] Completed: {description}")
+
+        # Run each tool and save results
+        write_and_run("web2attack", "Web2Attack")
+        write_and_run(f"skipfish -o skipfish_output {target_url}", "Skipfish")
+        write_and_run(f"sublist3r -d {target_domain}", "SubDomain Finder")
+        write_and_run(f"checkurl {target_url}", "CheckURL")
+        write_and_run("blazy", "Blazy (Including ClickJacking)")
+        write_and_run(f"subjack -d {target_domain}", "Sub-Domain TakeOver")
+        write_and_run(f"dirb {target_url} /usr/share/dirb/wordlists/common.txt", "Dirb")
+
+    print(f"[+] All results saved in: {output_file}")
+
+# Main function
+def main():
+    show_banner()
+
+    if len(sys.argv) < 2:
+        print("Usage: python advanced_web_app_scanner.py <target_url>")
+        sys.exit(1)
+
+    target_url = sys.argv[1]
+    target_domain = target_url.split("//")[-1].split("/")[0]
+
+    tools = ["web2attack", "skipfish", "sublist3r", "checkurl", "blazy", "subjack", "dirb"]
+    check_and_install_tools(tools)
+    run_tools(target_url, target_domain)
+
+if __name__ == "__main__":
+    main()
